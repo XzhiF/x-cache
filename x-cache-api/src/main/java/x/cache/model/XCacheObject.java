@@ -3,6 +3,7 @@ package x.cache.model;
 import lombok.*;
 
 import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 缓存的包装对象
@@ -40,6 +41,11 @@ public class XCacheObject<E>
 
     public static  <E> XCacheObject<E> of(E object) {
         return new XCacheObject<>(object, null, null, null);
+    }
+
+    public static  <E> XCacheObject<E> of(E object, long timeout, TimeUnit unit) {
+        Date expireAt = new Date(System.currentTimeMillis()+unit.toMillis(timeout));
+        return new XCacheObject<>(object, null, expireAt, null);
     }
 
 }
