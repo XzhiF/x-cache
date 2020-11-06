@@ -9,18 +9,19 @@ import org.springframework.transaction.annotation.Transactional;
 import x.cache.examples.XCacheExamplesApplication;
 import x.cache.examples.constants.RedisKeys;
 import x.cache.examples.model.Post;
-import x.cache.examples.service.PostServiceV2;
+import x.cache.examples.service.PostService;
+import x.cache.examples.service.PostServiceXCacheObject;
 
 import java.util.concurrent.TimeUnit;
 
 @SpringBootTest(classes = XCacheExamplesApplication.class)
 @Transactional
-public class PostServiceV2Test
+public class PostServiceXCacheObjectTest
 {
 
 
     @Autowired
-    private PostServiceV2 postService;
+    private PostServiceXCacheObject postService;
 
 
     @Test
@@ -40,16 +41,6 @@ public class PostServiceV2Test
         Post post4 = postService.find(2L);
         Assertions.assertNotNull(post4);
         Assertions.assertTrue(post4 != post3);
-
-        System.out.println(JSON.toJSONString(RedisKeys.getKeysStat()));
-    }
-
-    @Test
-    public void testFindNotExists() throws Exception
-    {
-        // 第个次的话从db
-        Post post = postService.find(3L);
-        Assertions.assertNull(post);
 
         System.out.println(JSON.toJSONString(RedisKeys.getKeysStat()));
     }

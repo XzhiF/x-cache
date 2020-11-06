@@ -44,23 +44,5 @@ public class PostServiceTest
         System.out.println(JSON.toJSONString(RedisKeys.getKeysStat()));
     }
 
-    @Test
-    public void testFind2() throws Exception
-    {
-        // 第个次的话从db
-        Post post = postService.find(1L);
-        Assertions.assertNull(post);
-
-        // 在本地缓存获取
-        Post post2 = postService.find(1L);
-        Post post3 = postService.find(1L);
-        Assertions.assertTrue(post2 == post3);
-
-        // 从redis获取
-        TimeUnit.SECONDS.sleep(5L);
-        Post post4 = postService.find(1L);
-        Assertions.assertNull(post4);
-    }
-
 
 }
