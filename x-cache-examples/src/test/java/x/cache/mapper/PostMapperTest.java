@@ -13,7 +13,6 @@ import x.cache.examples.mapper.PostMapper;
 import java.util.Date;
 
 @SpringBootTest(classes = XCacheExamplesApplication.class)
-@Transactional
 public class PostMapperTest
 {
 

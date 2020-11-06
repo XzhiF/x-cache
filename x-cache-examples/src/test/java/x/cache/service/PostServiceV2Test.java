@@ -10,17 +10,18 @@ import x.cache.examples.XCacheExamplesApplication;
 import x.cache.examples.constants.RedisKeys;
 import x.cache.examples.model.Post;
 import x.cache.examples.service.PostService;
+import x.cache.examples.service.PostServiceV2;
 
 import java.util.concurrent.TimeUnit;
 
 @SpringBootTest(classes = XCacheExamplesApplication.class)
 @Transactional
-public class PostServiceTest
+public class PostServiceV2Test
 {
 
 
     @Autowired
-    private PostService postService;
+    private PostServiceV2 postService;
 
 
     @Test
@@ -45,22 +46,15 @@ public class PostServiceTest
     }
 
     @Test
-    public void testFind2() throws Exception
+    public void testFindNotExists() throws Exception
     {
         // 第个次的话从db
-        Post post = postService.find(1L);
+        Post post = postService.find(3L);
         Assertions.assertNull(post);
 
-        // 在本地缓存获取
-        Post post2 = postService.find(1L);
-        Post post3 = postService.find(1L);
-        Assertions.assertTrue(post2 == post3);
-
-        // 从redis获取
-        TimeUnit.SECONDS.sleep(5L);
-        Post post4 = postService.find(1L);
-        Assertions.assertNull(post4);
+        System.out.println(JSON.toJSONString(RedisKeys.getKeysStat()));
     }
+
 
 
 }
