@@ -43,6 +43,10 @@ public class XCacheObject<E>
         return new XCacheObject<>(object, null, null, null);
     }
 
+    public static  <E> XCacheObject<E> of(E object, Integer version) {
+        return new XCacheObject<>(object, version, null, null);
+    }
+
     public static  <E> XCacheObject<E> of(E object, long timeout, TimeUnit unit) {
         Date expireAt = new Date(System.currentTimeMillis()+unit.toMillis(timeout));
         return new XCacheObject<>(object, null, expireAt, null);

@@ -2,6 +2,7 @@ package x.cache.service;
 
 import com.alibaba.fastjson.JSON;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -19,13 +20,14 @@ import java.util.concurrent.TimeUnit;
 public class PostServiceXCacheObjectTest
 {
 
-
     @Autowired
     private PostServiceXCacheObject postService;
 
 
     @Autowired
     private StringRedisTemplate redisTemplate;
+
+
 
     @Test
     public void testFind() throws Exception
@@ -76,5 +78,26 @@ public class PostServiceXCacheObjectTest
         Assertions.assertTrue(post5 != post4);
 
         System.out.println(JSON.toJSONString(RedisKeys.getKeysStat()));
+    }
+
+
+    @Test
+    public void testFindRefreshByVersion() throws Exception
+    {
+        redisTemplate.delete("str:example:model:post:2");
+
+        // 第个次的话从db
+        Post post = postService.findRefreshByVersion(2L, 1);
+        Assertions.assertNotNull(post);
+
+
+        // 在本地缓存获取
+        Post post2 = postService.findRefreshByVersion(2L, 1);
+        Assertions.assertTrue(post == post2);
+
+
+        // 在本地缓存获取
+        Post post3 = postService.findRefreshByVersion(2L, 2);
+        Assertions.assertTrue(post2 != post3);
     }
 }
