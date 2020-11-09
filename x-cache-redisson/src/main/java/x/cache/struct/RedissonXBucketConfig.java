@@ -11,11 +11,10 @@ public class RedissonXBucketConfig
     private LocalCacheConfig localConfig = new LocalCacheConfig();
     private RedisCacheConfig redisConfig = new RedisCacheConfig();
 
-
     @Data
     public static class ObjectCacheConfig
     {
-        private long timeout;
+        private Long timeout;
         private TimeUnit unit;
         private Integer version;
     }
@@ -23,14 +22,14 @@ public class RedissonXBucketConfig
     @Data
     public static class LocalCacheConfig
     {
-        private long timeout = 10L;
+        private Long timeout = 10L;
         private TimeUnit unit = TimeUnit.SECONDS;
     }
 
     @Data
     public static class RedisCacheConfig
     {
-        private long timeout = 10L;
+        private Long timeout = 10L;
         private TimeUnit unit = TimeUnit.SECONDS;
     }
 

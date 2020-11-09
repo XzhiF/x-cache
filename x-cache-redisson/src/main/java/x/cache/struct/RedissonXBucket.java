@@ -2,18 +2,23 @@ package x.cache.struct;
 
 import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
-import x.cache.exception.XCacheException;
 import x.cache.model.XCacheObject;
 
 import java.util.Date;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public class RedissonXBucket<E> implements XBucket<E>
 {
     private RedissonClient redisson;
     private AutoRefreshExecutor autoRefreshExecutor;
     private RedissonXBucketConfig config;
+
+    private Function<String, E> keyLoader;
+    private BiFunction<String, Integer, E> keyVersionLoader;
 
     public RedissonXBucket(RedissonClient redisson, AutoRefreshExecutor autoRefreshExecutor, RedissonXBucketConfig config)
     {
@@ -26,6 +31,13 @@ public class RedissonXBucket<E> implements XBucket<E>
     public void put(String key, E e)
     {
         XCacheObject<E> xCacheObject = ofXCacheObject(e);
+        setBucket(key, xCacheObject);
+    }
+
+    @Override
+    public void put(String key, E e, Integer version)
+    {
+        XCacheObject<E> xCacheObject = XCacheObject.of(e, version);
         setBucket(key, xCacheObject);
     }
 
@@ -50,6 +62,20 @@ public class RedissonXBucket<E> implements XBucket<E>
         return autoRefresh(key, callable, xCacheObject).getObject();
     }
 
+    @Override
+    public E getByVersion(String key, Integer version, Callable<E> callable)
+    {
+        XCacheObject<E> xCacheObject = getBucket(key).get();
+        Integer oldVersion = xCacheObject.getVersion() != null ? xCacheObject.getVersion() : 0;
+
+        if (Objects.equals(oldVersion, version) || oldVersion >= version) {
+            return xCacheObject.getObject();
+        }
+        E object = doCall(callable);
+        XCacheObject<E> new_ = XCacheObject.of(object, version);
+        setBucket(key, new_);
+        return new_.getObject();
+    }
 
     private XCacheObject<E> autoRefresh(String key, Callable<E> callable, XCacheObject<E> current)
     {
@@ -79,14 +105,7 @@ public class RedissonXBucket<E> implements XBucket<E>
         }
     }
 
-    private E doCall(Callable<E> callable)
-    {
-        try {
-            return callable.call();
-        } catch (Exception e) {
-            throw new XCacheException(e.getMessage(), e);
-        }
-    }
+
 
     private void setBucket(String key, XCacheObject<E> e)
     {
@@ -95,6 +114,9 @@ public class RedissonXBucket<E> implements XBucket<E>
 
     private XCacheObject<E> ofXCacheObject(E e)
     {
+        if (config.getObjectConfig() == null || config.getObjectConfig().getTimeout() == null) {
+            return XCacheObject.of(e);
+        }
         return XCacheObject.of(e, config.getObjectConfig().getTimeout(), config.getObjectConfig().getUnit());
     }
 
@@ -107,4 +129,6 @@ public class RedissonXBucket<E> implements XBucket<E>
     {
         return redisson.getBucket(key);
     }
+
+
 }
