@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
-    <packaging>pom</packaging>
-    <modules>
-        <module>x-cache-api</module>
-    </modules>
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
@@ -16,15 +11,22 @@
     <artifactId>x-cache</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>x-cache</name>
+    <modelVersion>4.0.0</modelVersion>
+    <packaging>pom</packaging>
     <description>x-cache-pom</description>
+
+    <modules>
+        <module>x-cache-api</module>
+        <module>x-cache-redisson</module>
+    </modules>
 
     <properties>
         <java.version>1.8</java.version>
-
         <guava.version>30.0-jre</guava.version>
         <mysql.version>8.0.22</mysql.version>
         <fastjson.version>1.2.74</fastjson.version>
         <mybatis-plus.version>3.4.0</mybatis-plus.version>
+        <redisson-spring-boot-starter.version>3.13.6</redisson-spring-boot-starter.version>
     </properties>
 
 
@@ -61,6 +63,11 @@
                 <version>${mybatis-plus.version}</version>
             </dependency>
 
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-boot-starter</artifactId>
+                <version>${redisson-spring-boot-starter.version}</version>
+            </dependency>
 
 
         </dependencies>
