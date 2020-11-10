@@ -7,11 +7,9 @@ import org.redisson.api.RedissonClient;
 import x.cache.model.XCacheObject;
 
 import java.util.Date;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class RedissonXBucket<E> implements XBucket<E>
 {
@@ -54,22 +52,14 @@ public class RedissonXBucket<E> implements XBucket<E>
     @Override
     public E getIfPresent(String key)
     {
-        return executeGet(key, null, (xCacheObject) -> {
-            if (config.getLocalConfig().isUseLocalCache() && localCache.getIfPresent(key) == null) {
-                setLocalCache(key, xCacheObject);
-            }
-            return xCacheObject.getObject();
-        });
+        return execute(key, null, (xCacheObject) -> xCacheObject.getObject());
     }
 
     @Override
     public E getAutoRefresh(String key, Callable<E> callable)
     {
-        return executeGet(key, callable, (xCacheObject) -> {
+        return execute(key, callable, (xCacheObject) -> {
             autoRefreshAsync(key, callable, xCacheObject);
-            if (config.getLocalConfig().isUseLocalCache() && localCache.getIfPresent(key) == null) {
-                setLocalCache(key, xCacheObject);
-            }
             return xCacheObject.getObject();
         });
     }
@@ -77,22 +67,52 @@ public class RedissonXBucket<E> implements XBucket<E>
     @Override
     public E autoRefreshGet(String key, Callable<E> callable)
     {
-        return executeGet(key, callable, (xCacheObject) -> autoRefresh(key, callable, xCacheObject).getObject());
+        return execute(key, callable, (xCacheObject) -> autoRefresh(key, callable, xCacheObject).getObject());
     }
 
-    private E executeGet(String key, Callable<E> callable, Function<XCacheObject<E>, E> cacheHitFunc)
+
+    @Override
+    public E getAutoRefresh(String key, Integer version, Callable<E> callable)
+    {
+        return execute(key, version, callable, (xCacheObject) -> {
+            autoRefreshAsync(key, version, callable, xCacheObject);
+            return xCacheObject.getObject();
+        });
+    }
+
+    @Override
+    public E autoRefreshGet(String key, Integer version, Callable<E> callable)
+    {
+        return execute(key, version, callable, (xCacheObject) -> autoRefresh(key, version, callable, xCacheObject).getObject());
+    }
+
+
+    private E execute(String key, Callable<E> callable, Function<XCacheObject<E>, E> cacheHitFunc)
+    {
+        return execute(key, null, callable, cacheHitFunc);
+    }
+
+    private E execute(String key, Integer version, Callable<E> callable, Function<XCacheObject<E>, E> cacheHitFunc)
     {
         // 本地缓存获取
         if (config.getLocalConfig().isUseLocalCache()) {
             XCacheObject<E> localXCacheObject = localCache.getIfPresent(key);
-            if (localXCacheObject != null) {
+            // 传入版本大于旧的版本
+            if(localXCacheObject != null && !noNeedToUpdateVersion(localXCacheObject.getVersion(), version)){
+                return callXCacheObject(key, version, callable).getObject();
+            }
+            if (localXCacheObject != null && noNeedToUpdateVersion(localXCacheObject.getVersion(), version)) {
                 return cacheHitFunc.apply(localXCacheObject);
             }
         }
 
         // 重redis中获取
         XCacheObject<E> redisXCacheObject = getBucket(key).get();
-        if (redisXCacheObject != null) {
+        if (redisXCacheObject != null && noNeedToUpdateVersion(redisXCacheObject.getVersion(), version)) {
+            // 更新本地缓存
+            if (config.getLocalConfig().isUseLocalCache()) {
+                setLocalCache(key, redisXCacheObject);
+            }
             return cacheHitFunc.apply(redisXCacheObject);
         }
 
@@ -101,79 +121,70 @@ public class RedissonXBucket<E> implements XBucket<E>
             return null;
         }
 
-        E object = doCall(callable);
-        XCacheObject<E> newXCacheObject = ofXCacheObject(object);
-        setBucket(key, newXCacheObject);
-        setLocalCache(key, newXCacheObject);
-        return newXCacheObject.getObject();
+        return callXCacheObject(key, version, callable).getObject();
     }
 
 
-    @Override
-    public E getByVersion(String key, Integer version, Callable<E> callable)
+    private boolean noNeedToUpdateVersion(Integer src, Integer tar)
     {
-        // 从本地缓存中获取
-        if (config.getLocalConfig().isUseLocalCache()) {
-            XCacheObject<E> localXCacheObject = obtainVersionXCacheObject(version, () -> localCache.getIfPresent(key));
-            if (localXCacheObject != null) {
-                return localXCacheObject.getObject();
-            }
-        }
-
-        // 从redis中获取
-        XCacheObject<E> redisCacheObject = obtainVersionXCacheObject(version, () -> getBucket(key).get());
-        if (redisCacheObject != null) {
-            setLocalCache(key, redisCacheObject);
-            return redisCacheObject.getObject();
-        }
-
-        // 从callable中获取
-        E object = doCall(callable);
-        XCacheObject<E> new_ = XCacheObject.of(object, version);
-        setBucket(key, new_);
-        setLocalCache(key, new_);
-        return new_.getObject();
-    }
-
-    private XCacheObject<E> obtainVersionXCacheObject(Integer version, Supplier<XCacheObject<E>> supplier)
-    {
-        XCacheObject<E> xCacheObject = supplier.get();
-        Integer oldVersion = xCacheObject.getVersion() != null ? xCacheObject.getVersion() : 0;
-        if (Objects.equals(oldVersion, version) || oldVersion >= version) {
-            return xCacheObject;
-        }
-        return null;
+        src = src != null ? src : 0;
+        tar = tar != null ? tar : 0;
+        return src >= tar;
     }
 
 
     private XCacheObject<E> autoRefresh(String key, Callable<E> callable, XCacheObject<E> current)
     {
+        return autoRefresh(key, null, callable, current);
+    }
+
+    private XCacheObject<E> autoRefresh(String key, Integer version, Callable<E> callable, XCacheObject<E> current)
+    {
+        Integer oldVersion = current.getVersion() != null ? current.getVersion() : 0;
+        if (version != null && version > oldVersion) {
+            return callXCacheObject(key, version, callable);
+        }
         // 判断这个缓存已经过期
         if (current.getExpireAt() != null && current.getExpireAt().before(new Date())) {
-            E object = doCall(callable);
-            XCacheObject<E> new_ = ofXCacheObject(object);
-            setBucket(key, new_);
-            setLocalCache(key, new_);
-            return new_;
+            return callXCacheObject(key, version, callable);
         }
         return current;
     }
 
+
     private void autoRefreshAsync(String key, Callable<E> callable, XCacheObject<E> current)
     {
+        autoRefreshAsync(key, null, callable, current);
+    }
+
+    private void autoRefreshAsync(String key, Integer version, Callable<E> callable, XCacheObject<E> current)
+    {
+        // 判断version是不是不一样
+        Integer oldVersion = current.getVersion() != null ? current.getVersion() : 0;
+        if (version != null && version > oldVersion) {
+            autoRefreshExecutor.asyncExec(() -> callXCacheObject(key, version, callable));
+            return;
+        }
+
         // 判断这个缓存已经过期
         if (current.getExpireAt() != null && current.getExpireAt().before(new Date())) {
             autoRefreshExecutor.asyncExec(() -> {
                 RBucket<Integer> trySetBucket = getTrySetBucket(key);
                 boolean trySet = trySetBucket.trySet(1, 1, TimeUnit.SECONDS);
                 if (trySet) {
-                    E object = doCall(callable);
-                    XCacheObject<E> new_ = ofXCacheObject(object);
-                    setBucket(key, new_);
-                    setLocalCache(key, new_);
+                    callXCacheObject(key, version, callable);
                 }
             });
         }
+    }
+
+    private XCacheObject<E> callXCacheObject(String key, Integer version, Callable<E> callable)
+    {
+        E object = doCall(callable);
+        XCacheObject<E> new_ = ofXCacheObject(object, version);
+        setBucket(key, new_);
+        setLocalCache(key, new_);
+        return new_;
     }
 
     private void setLocalCache(String key, XCacheObject<E> xCacheObject)
@@ -190,11 +201,17 @@ public class RedissonXBucket<E> implements XBucket<E>
 
     private XCacheObject<E> ofXCacheObject(E e)
     {
-        if (config.getObjectConfig() == null || config.getObjectConfig().getTimeout() == null) {
-            return XCacheObject.of(e);
-        }
-        return XCacheObject.of(e, config.getObjectConfig().getTimeout(), config.getObjectConfig().getUnit());
+        return ofXCacheObject(e, null);
     }
+
+    private XCacheObject<E> ofXCacheObject(E e, Integer version)
+    {
+        if (config.getObjectConfig() == null || config.getObjectConfig().getTimeout() == null) {
+            return XCacheObject.of(e, version);
+        }
+        return XCacheObject.of(e, version, config.getObjectConfig().getTimeout(), config.getObjectConfig().getUnit());
+    }
+
 
     private RBucket<Integer> getTrySetBucket(String key)
     {

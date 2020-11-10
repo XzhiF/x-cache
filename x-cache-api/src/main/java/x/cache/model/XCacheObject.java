@@ -39,17 +39,26 @@ public class XCacheObject<E>
     private Integer isVoid;
 
 
-    public static  <E> XCacheObject<E> of(E object) {
+    public static <E> XCacheObject<E> of(E object)
+    {
         return new XCacheObject<>(object, null, null, null);
     }
 
-    public static  <E> XCacheObject<E> of(E object, Integer version) {
+    public static <E> XCacheObject<E> of(E object, Integer version)
+    {
         return new XCacheObject<>(object, version, null, null);
     }
 
-    public static  <E> XCacheObject<E> of(E object, long timeout, TimeUnit unit) {
-        Date expireAt = new Date(System.currentTimeMillis()+unit.toMillis(timeout));
+    public static <E> XCacheObject<E> of(E object, long timeout, TimeUnit unit)
+    {
+        Date expireAt = new Date(System.currentTimeMillis() + unit.toMillis(timeout));
         return new XCacheObject<>(object, null, expireAt, null);
+    }
+
+    public static <E> XCacheObject<E> of(E object, Integer version, long timeout, TimeUnit unit)
+    {
+        Date expireAt = new Date(System.currentTimeMillis() + unit.toMillis(timeout));
+        return new XCacheObject<>(object, version, expireAt, null);
     }
 
 }

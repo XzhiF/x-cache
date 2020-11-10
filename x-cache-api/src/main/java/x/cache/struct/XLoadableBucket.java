@@ -26,5 +26,14 @@ public interface XLoadableBucket<E> extends XBucket<E>
      * @param version
      * @return
      */
-    E getByVersion(String key, Integer version);
+    E getAutoRefresh(String key, Integer version);
+
+
+    /**
+     * 先刷新，同时获取结果 ,同步
+     * @param key
+     * @param version
+     * @return
+     */
+    E autoRefreshGet(String key, Integer version);
 }

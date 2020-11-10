@@ -61,8 +61,17 @@ public interface XBucket<E>
      * @param callable
      * @return
      */
-    E getByVersion(String key, Integer version, Callable<E> callable);
+    E getAutoRefresh(String key, Integer version, Callable<E> callable);
 
+    /**
+     * 通过版本获取
+     *
+     * @param key
+     * @param version
+     * @param callable
+     * @return
+     */
+    E autoRefreshGet(String key, Integer version, Callable<E> callable);
 
     /**
      * 封装call方法
