@@ -12,8 +12,6 @@ public class RedissonXBucketConfig
     private LocalCacheConfig localConfig = new LocalCacheConfig();
     private RedisCacheConfig redisConfig = new RedisCacheConfig();
 
-    private UpdateStrategy versionUpdateStrategy;
-    private UpdateStrategy cacheMissStrategy;
 
     @Data
     public static class ObjectCacheConfig

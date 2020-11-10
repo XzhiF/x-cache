@@ -3,8 +3,8 @@ package x.cache.struct;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import org.redisson.api.RBucket;
+import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import x.cache.model.UpdateStrategy;
 import x.cache.model.XCacheObject;
 
 import java.util.Date;
@@ -20,17 +20,11 @@ public class RedissonXBucket<E> implements XBucket<E>
     private Cache<String, XCacheObject<E>> localCache;
 
 
-    private UpdateStrategy versionUpdateStrategy;
-    private UpdateStrategy cacheMissStrategy;
-
-
     public RedissonXBucket(RedissonClient redisson, AutoRefreshExecutor autoRefreshExecutor, RedissonXBucketConfig config)
     {
         this.redisson = redisson;
         this.autoRefreshExecutor = autoRefreshExecutor;
         this.config = config;
-        this.versionUpdateStrategy = config.getVersionUpdateStrategy();
-        this.cacheMissStrategy = config.getCacheMissStrategy();
 
         if (config.getLocalConfig().isUseLocalCache()) {
             this.localCache = CacheBuilder.newBuilder()
@@ -44,9 +38,6 @@ public class RedissonXBucket<E> implements XBucket<E>
     /**
      * 在Version版本变更时候，直接返回旧缓存异步更新， 或者同步更新返回新缓存结果
      * <p>
-     * 在缓存没有命中的时候，或者XCacheObject在redis与local都不存在时的策略：
-     * 直接返回null，异步构建缓存
-     * 同步构建缓存，返回结果
      */
     interface UpdateHandler<E>
     {
@@ -65,27 +56,6 @@ public class RedissonXBucket<E> implements XBucket<E>
             doAutoRefreshAsync(k, v, c);
             return null;
         };
-    }
-
-    private UpdateHandler<E> getUpdateHandler(UpdateStrategy updateStrategy)
-    {
-        switch (updateStrategy) {
-            case ASYNC:
-                return asyncUpdateHandler();
-            case SYNC:
-            default:
-                return syncUpdateHandler();
-        }
-    }
-
-    private UpdateHandler<E> getVersionUpdateHandler()
-    {
-        return getUpdateHandler(versionUpdateStrategy);
-    }
-
-    private UpdateHandler<E> getCacheMissUpdateHandler()
-    {
-        return getUpdateHandler(cacheMissStrategy);
     }
 
 
@@ -133,32 +103,27 @@ public class RedissonXBucket<E> implements XBucket<E>
         return execute(key, version, callable, (xCacheObject) -> {
             autoRefreshAsync(key, version, callable, xCacheObject);
             return xCacheObject.getObject();
-        });
+        }, asyncUpdateHandler());
     }
 
     @Override
     public E autoRefreshGet(String key, Integer version, Callable<E> callable)
     {
-        return execute(key, version, callable, (xCacheObject) -> autoRefresh(key, version, callable, xCacheObject).getObject());
+        return execute(key, version, callable, (xCacheObject) -> autoRefresh(key, version, callable, xCacheObject).getObject(), syncUpdateHandler());
     }
 
 
     private E execute(String key, Callable<E> callable, Function<XCacheObject<E>, E> cacheHitFunc)
     {
-        return execute(key, null, callable, cacheHitFunc, getVersionUpdateHandler(), getCacheMissUpdateHandler());
+        return execute(key, null, callable, cacheHitFunc, null);
     }
 
-    private E execute(String key, Integer version, Callable<E> callable, Function<XCacheObject<E>, E> cacheHitFunc)
-    {
-        return execute(key, version, callable, cacheHitFunc, getVersionUpdateHandler(), getCacheMissUpdateHandler());
-    }
-
-    private E execute(String key, Integer version, Callable<E> callable, Function<XCacheObject<E>, E> cacheHitFunc, UpdateHandler<E> versionChangeHandler, UpdateHandler<E> cacheMissHandler)
+    private E execute(String key, Integer version, Callable<E> callable, Function<XCacheObject<E>, E> cacheHitFunc, UpdateHandler<E> versionChangeHandler)
     {
         // 本地缓存获取
         if (config.getLocalConfig().isUseLocalCache()) {
             XCacheObject<E> localXCacheObject = localCache.getIfPresent(key);
-            if (localXCacheObject != null && !noNeedToUpdateVersion(localXCacheObject.getVersion(), version)) {
+            if (localXCacheObject != null && !noNeedToUpdateVersion(localXCacheObject.getVersion(), version) && versionChangeHandler != null) {
                 return versionChangeHandler.handle(key, version, callable);
             }
             if (localXCacheObject != null && noNeedToUpdateVersion(localXCacheObject.getVersion(), version)) {
@@ -168,7 +133,7 @@ public class RedissonXBucket<E> implements XBucket<E>
 
         // 重redis中获取
         XCacheObject<E> redisXCacheObject = getBucket(key).get();
-        if (redisXCacheObject != null && !noNeedToUpdateVersion(redisXCacheObject.getVersion(), version)) {
+        if (redisXCacheObject != null && !noNeedToUpdateVersion(redisXCacheObject.getVersion(), version) && versionChangeHandler != null) {
             return versionChangeHandler.handle(key, version, callable);
         }
         if (redisXCacheObject != null && noNeedToUpdateVersion(redisXCacheObject.getVersion(), version)) {
@@ -182,7 +147,17 @@ public class RedissonXBucket<E> implements XBucket<E>
         if (callable == null) {
             return null;
         }
-        return cacheMissHandler.handle(key, version, callable);
+
+        RLock rLock = getBucketLock(key);
+        try {
+            rLock.lock(2, TimeUnit.SECONDS);
+            if (getBucket(key).get() != null) {
+                return getBucket(key).get().getObject();
+            }
+            return callXCacheObject(key, version, callable).getObject();
+        } finally {
+            rLock.unlock();
+        }
     }
 
 
@@ -283,6 +258,11 @@ public class RedissonXBucket<E> implements XBucket<E>
         return XCacheObject.of(e, version, config.getObjectConfig().getTimeout(), config.getObjectConfig().getUnit());
     }
 
+
+    private RLock getBucketLock(String key)
+    {
+        return redisson.getLock(key + ":lock");
+    }
 
     private RBucket<Integer> getTrySetBucket(String key)
     {
