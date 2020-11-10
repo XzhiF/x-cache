@@ -38,6 +38,12 @@ public class RedissonXLoadablerBucket<E> implements XLoadableBucket<E>
     }
 
     @Override
+    public E getIfPresent(String key)
+    {
+        return xBucket.getIfPresent(key);
+    }
+
+    @Override
     public E getAutoRefresh(String key, Callable<E> callable)
     {
         return xBucket.getAutoRefresh(key, callable);

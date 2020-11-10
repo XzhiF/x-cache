@@ -22,8 +22,10 @@ public class RedissonXBucketConfig
     @Data
     public static class LocalCacheConfig
     {
+        private boolean useLocalCache = false;
         private Long timeout = 10L;
         private TimeUnit unit = TimeUnit.SECONDS;
+        private Long maximumSize = 10_000L;
     }
 
     @Data

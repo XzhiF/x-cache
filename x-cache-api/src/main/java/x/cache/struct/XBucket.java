@@ -22,8 +22,18 @@ public interface XBucket<E>
      *
      * @param key
      * @param e
+     * @param version
      */
     void put(String key, E e, Integer version);
+
+
+    /**
+     * 直接获取
+     *
+     * @param key
+     * @return
+     */
+    E getIfPresent(String key);
 
     /**
      * 先返回结果，再去刷新
@@ -56,6 +66,7 @@ public interface XBucket<E>
 
     /**
      * 封装call方法
+     *
      * @param callable
      * @return
      */
