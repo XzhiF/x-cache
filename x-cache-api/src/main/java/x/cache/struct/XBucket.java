@@ -73,6 +73,7 @@ public interface XBucket<E>
      */
     E autoRefreshGet(String key, Integer version, Callable<E> callable);
 
+
     /**
      * 封装call方法
      *

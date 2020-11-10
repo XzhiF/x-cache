@@ -1,6 +1,7 @@
 package x.cache.struct;
 
 import lombok.Data;
+import x.cache.model.UpdateStrategy;
 
 import java.util.concurrent.TimeUnit;
 
@@ -10,6 +11,9 @@ public class RedissonXBucketConfig
     private ObjectCacheConfig objectConfig = new ObjectCacheConfig();
     private LocalCacheConfig localConfig = new LocalCacheConfig();
     private RedisCacheConfig redisConfig = new RedisCacheConfig();
+
+    private UpdateStrategy versionUpdateStrategy;
+    private UpdateStrategy cacheMissStrategy;
 
     @Data
     public static class ObjectCacheConfig
