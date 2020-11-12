@@ -28,6 +28,13 @@ public interface XBucket<E>
 
 
     /**
+     * 删除
+     * @param key
+     */
+    void del(String key);
+
+
+    /**
      * 直接获取
      *
      * @param key
