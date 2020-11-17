@@ -6,8 +6,11 @@ import com.google.common.cache.CacheBuilder;
 import org.redisson.api.*;
 import org.redisson.api.listener.MessageListener;
 import x.cache.exception.XCacheException;
+import x.cache.handler.XCacheExceptionHandler;
+import x.cache.handler.XCacheUpdateHandler;
 import x.cache.model.XCacheEvent;
 import x.cache.model.XCacheObject;
+import x.cache.model.XCacheParam;
 
 import java.util.Date;
 import java.util.concurrent.Callable;
@@ -45,27 +48,23 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
         }
     }
 
-
-    /**
-     * 在Version版本变更时候，直接返回旧缓存异步更新， 或者同步更新返回新缓存结果
-     * <p>
-     */
-    interface UpdateHandler<E>
+    public XCacheUpdateHandler<E> syncUpdateHandler()
     {
-        E handle(String key, Integer version, Callable<E> callable);
+        return (param) -> doAutoRefresh(param.getKey(), param.getVersion(), param.getCallable()).getObject();
     }
 
-
-    public UpdateHandler<E> syncUpdateHandler()
+    public XCacheUpdateHandler<E> asyncUpdateHandler()
     {
-        return (k, v, c) -> doAutoRefresh(k, v, c).getObject();
-    }
-
-    public UpdateHandler<E> asyncUpdateHandler()
-    {
-        return (k, v, c) -> {
-            doAutoRefreshAsync(k, v, c);
+        return (param) -> {
+            doAutoRefreshAsync(param.getKey(), param.getVersion(), param.getCallable());
             return null;
+        };
+    }
+
+    public XCacheExceptionHandler<E> defaultExceptionHandler()
+    {
+        return (param, throwable) -> {
+            throw new XCacheException(throwable.getMessage(), throwable);
         };
     }
 
@@ -123,31 +122,45 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
     @Override
     public E getAutoRefresh(String key, Integer version, Callable<E> callable)
     {
-        return execute(key, version, callable, (xCacheObject) -> {
+        return (E) execute(new XCacheParam(key, version, callable), (xCacheObject) -> {
             autoRefreshAsync(key, version, callable, xCacheObject);
             return xCacheObject.getObject();
-        }, asyncUpdateHandler());
+        }, asyncUpdateHandler(), defaultExceptionHandler());
     }
 
     @Override
     public E autoRefreshGet(String key, Integer version, Callable<E> callable)
     {
-        return execute(key, version, callable, (xCacheObject) -> autoRefresh(key, version, callable, xCacheObject).getObject(), syncUpdateHandler());
+        return (E) execute(new XCacheParam(key, version, callable), (xCacheObject) -> autoRefresh(key, version, callable, xCacheObject).getObject(), syncUpdateHandler(), defaultExceptionHandler());
     }
 
+
+    @Override
+    public E execute(XCacheParam<E> param, Function<XCacheObject<E>, E> cacheHitFunc, XCacheUpdateHandler<E> versionChangeHandler, XCacheExceptionHandler<E> exceptionHandler)
+    {
+        try {
+            return doExecute(param, cacheHitFunc, versionChangeHandler);
+        } catch (Throwable throwable) {
+            return exceptionHandler.handle(param, throwable);
+        }
+    }
 
     private E execute(String key, Callable<E> callable, Function<XCacheObject<E>, E> cacheHitFunc)
     {
-        return execute(key, null, callable, cacheHitFunc, null);
+        return (E) execute(new XCacheParam(key, null, callable), cacheHitFunc, null, defaultExceptionHandler());
     }
 
-    private E execute(String key, Integer version, Callable<E> callable, Function<XCacheObject<E>, E> cacheHitFunc, UpdateHandler<E> versionChangeHandler)
+    private E doExecute(XCacheParam<E> param, Function<XCacheObject<E>, E> cacheHitFunc, XCacheUpdateHandler<E> versionChangeHandler)
     {
+        String key = param.getKey();
+        Integer version = param.getVersion();
+        Callable<E> callable = param.getCallable();
+
         // 本地缓存获取
         if (config.getLocalConfig().isEnabled()) {
             XCacheObject<E> localXCacheObject = localCache.getIfPresent(key);
             if (localXCacheObject != null && !noNeedToUpdateVersion(localXCacheObject.getVersion(), version) && versionChangeHandler != null) {
-                return versionChangeHandler.handle(key, version, callable);
+                return versionChangeHandler.handle(param);
             }
             if (localXCacheObject != null && noNeedToUpdateVersion(localXCacheObject.getVersion(), version)) {
                 return cacheHitFunc.apply(localXCacheObject);
@@ -157,7 +170,7 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
         // 重redis中获取
         XCacheObject<E> redisXCacheObject = getBucket(key).get();
         if (redisXCacheObject != null && !noNeedToUpdateVersion(redisXCacheObject.getVersion(), version) && versionChangeHandler != null) {
-            return versionChangeHandler.handle(key, version, callable);
+            return versionChangeHandler.handle(param);
         }
         if (redisXCacheObject != null && noNeedToUpdateVersion(redisXCacheObject.getVersion(), version)) {
             if (config.getLocalConfig().isEnabled()) {

@@ -1,8 +1,13 @@
 package x.cache.struct;
 
 import x.cache.exception.XCacheException;
+import x.cache.handler.XCacheExceptionHandler;
+import x.cache.handler.XCacheUpdateHandler;
+import x.cache.model.XCacheObject;
+import x.cache.model.XCacheParam;
 
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 
 /**
  * 保存数据结构
@@ -29,6 +34,7 @@ public interface XBucket<E>
 
     /**
      * 删除
+     *
      * @param key
      */
     void del(String key);
@@ -79,6 +85,18 @@ public interface XBucket<E>
      * @return
      */
     E autoRefreshGet(String key, Integer version, Callable<E> callable);
+
+
+    /**
+     * 总的execute方法
+     *
+     * @param param
+     * @param cacheHitFunc
+     * @param versionChangeHandler
+     * @param exceptionHandler
+     * @return
+     */
+    E execute(XCacheParam<E> param, Function<XCacheObject<E>, E> cacheHitFunc, XCacheUpdateHandler<E> versionChangeHandler, XCacheExceptionHandler<E> exceptionHandler);
 
 
     /**

@@ -1,4 +1,4 @@
-package x.cache.model;
+package x.cache.handler;
 
 /**
  * 同步还是异步进行

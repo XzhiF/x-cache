@@ -1,64 +1,22 @@
 package x.cache.struct;
 
+import org.redisson.api.RedissonClient;
+
 import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-public class RedissonXLoadablerBucket<E> implements XLoadableBucket<E>
+public class RedissonXLoadablerBucket<E> extends RedissonXBucket<E> implements XLoadableBucket<E>
 {
-    private RedissonXBucket<E> xBucket;
     private Function<String, E> loader;
 
-    public RedissonXLoadablerBucket(RedissonXBucket<E> xBucket, Function<String, E> loader)
+    public RedissonXLoadablerBucket(RedissonClient redisson, AutoRefreshExecutor autoRefreshExecutor, RedissonXBucketConfig config, Function<String, E> loader)
     {
-        this.xBucket = xBucket;
+        super(redisson, autoRefreshExecutor, config);
         this.loader = loader;
     }
 
-    @Override
-    public void put(String key, E e)
-    {
-        xBucket.put(key, e);
-    }
-
-    @Override
-    public void put(String key, E e, Integer version)
-    {
-        xBucket.put(key, e, version);
-    }
-
-    @Override
-    public E getIfPresent(String key)
-    {
-        return xBucket.getIfPresent(key);
-    }
-
-    @Override
-    public E getAutoRefresh(String key, Callable<E> callable)
-    {
-        return xBucket.getAutoRefresh(key, callable);
-    }
-
-    @Override
-    public E autoRefreshGet(String key, Callable<E> callable)
-    {
-        return xBucket.autoRefreshGet(key, callable);
-    }
-
-    @Override
-    public E getAutoRefresh(String key, Integer version, Callable<E> callable)
-    {
-        return xBucket.getAutoRefresh(key, version, callable);
-    }
-
-    @Override
-    public E autoRefreshGet(String key, Integer version, Callable<E> callable)
-    {
-        return xBucket.autoRefreshGet(key, version, callable);
-    }
-
     // enhancement
-
 
     @Override
     public E getAutoRefresh(String key)

@@ -3,7 +3,8 @@ package x.cache.struct;
 import lombok.Data;
 import org.redisson.client.codec.Codec;
 import org.redisson.codec.JsonJacksonCodec;
-import x.cache.model.UpdateStrategy;
+import x.cache.handler.ExceptionStrategy;
+import x.cache.handler.UpdateStrategy;
 
 import java.util.concurrent.TimeUnit;
 
@@ -14,6 +15,7 @@ public class RedissonXBucketConfig
     private LocalCacheConfig localConfig = new LocalCacheConfig();
     private RedisCacheConfig redisConfig = new RedisCacheConfig();
     private TopicConfig topicConfig = new TopicConfig();
+    private StrategyConfig strategyConfig = new StrategyConfig();
 
 
     @Data
@@ -47,6 +49,15 @@ public class RedissonXBucketConfig
         private boolean autoPublish = true;
         private String name;
         private Codec codec = JsonJacksonCodec.INSTANCE;
+    }
+
+
+    @Data
+    public static class StrategyConfig
+    {
+        private UpdateStrategy versionUpdateStrategy;
+        private UpdateStrategy expireUpdateStrategy;
+        private ExceptionStrategy exceptionStrategy;
     }
 
 }
