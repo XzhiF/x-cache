@@ -2,6 +2,7 @@ package x.cache.model;
 
 import lombok.*;
 
+import java.io.Serializable;
 import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
@@ -13,10 +14,11 @@ import java.util.concurrent.TimeUnit;
 @AllArgsConstructor
 @Builder
 @ToString
-public class XCacheObject<E>
+public class XCacheObject<E> implements Serializable
 {
     public static final XCacheObject<Void> VOID = new XCacheObject<>(null, null, null, 1);
     public static final String VOID_VALUE = "_VOID_";
+    private static final long serialVersionUID = 1L;
 
     /**
      * 真正缓存对象

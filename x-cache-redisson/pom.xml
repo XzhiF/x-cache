@@ -9,7 +9,7 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>x-cache-redission</artifactId>
+    <artifactId>x-cache-redisson</artifactId>
 
     <dependencies>
         <dependency>

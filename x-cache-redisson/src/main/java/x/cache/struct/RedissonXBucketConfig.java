@@ -1,6 +1,9 @@
 package x.cache.struct;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.redisson.client.codec.Codec;
 import org.redisson.codec.JsonJacksonCodec;
 import x.cache.handler.ExceptionStrategy;
@@ -18,6 +21,8 @@ public class RedissonXBucketConfig
     private StrategyConfig strategyConfig = new StrategyConfig();
 
 
+    @NoArgsConstructor
+    @AllArgsConstructor
     @Data
     public static class ObjectCacheConfig
     {
@@ -26,6 +31,8 @@ public class RedissonXBucketConfig
         private Integer version;
     }
 
+    @NoArgsConstructor
+    @AllArgsConstructor
     @Data
     public static class LocalCacheConfig
     {
@@ -35,6 +42,8 @@ public class RedissonXBucketConfig
         private Long maximumSize = 10_000L;
     }
 
+    @NoArgsConstructor
+    @AllArgsConstructor
     @Data
     public static class RedisCacheConfig
     {
@@ -42,6 +51,8 @@ public class RedissonXBucketConfig
         private TimeUnit unit = TimeUnit.SECONDS;
     }
 
+    @NoArgsConstructor
+    @AllArgsConstructor
     @Data
     public static class TopicConfig
     {
@@ -51,7 +62,8 @@ public class RedissonXBucketConfig
         private Codec codec = JsonJacksonCodec.INSTANCE;
     }
 
-
+    @NoArgsConstructor
+    @AllArgsConstructor
     @Data
     public static class StrategyConfig
     {
