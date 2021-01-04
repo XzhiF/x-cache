@@ -52,4 +52,10 @@ public class XCacheEvent implements Serializable
      */
     private XCacheObject<?> xCacheObject;
 
+    /**
+     * 发布事件的实例
+     */
+    private String instance;
+
+
 }

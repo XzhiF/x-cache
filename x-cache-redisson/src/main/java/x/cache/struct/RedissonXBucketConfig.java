@@ -8,6 +8,7 @@ import org.redisson.client.codec.Codec;
 import org.redisson.codec.JsonJacksonCodec;
 import x.cache.handler.ExceptionStrategy;
 import x.cache.handler.UpdateStrategy;
+import x.cache.model.XCacheEvent;
 
 import java.util.concurrent.TimeUnit;
 
@@ -58,6 +59,9 @@ public class RedissonXBucketConfig
     {
         private boolean enabled = true;
         private boolean autoPublish = true;
+        // 默认删除集群中的本地缓存
+        private int autoPublishAction = XCacheEvent.ACTION_DEL;
+        private int autoPublishLevel = XCacheEvent.LEVEL_LOCAL;
         private String name;
         private Codec codec = JsonJacksonCodec.INSTANCE;
     }

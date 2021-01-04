@@ -27,6 +27,7 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
     private RTopic rTopic;
     private RAtomicLong rSeq;
 
+    private final String instance;
 
     public RedissonXBucket(RedissonClient redisson, AutoRefreshExecutor autoRefreshExecutor, RedissonXBucketConfig config)
     {
@@ -46,6 +47,9 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
             rTopic.addListener(XCacheEvent.class, this);
             rSeq = redisson.getAtomicLong(config.getTopicConfig().getName() + ":seq");
         }
+
+        //初始化instance，使用hashCode+唯一序号
+        this.instance = hashCode() + "_" + rSeq.getAndIncrement();
     }
 
     public XCacheUpdateHandler<E> syncUpdateHandler()
@@ -75,7 +79,7 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
         XCacheObject<E> xCacheObject = ofXCacheObject(e);
         setBucket(key, xCacheObject);
         setLocalCache(key, xCacheObject);
-        publishIfAuto(key, XCacheEvent.ACTION_SAVE, XCacheEvent.LEVEL_LOCAL, xCacheObject);
+        publishEventIfAuto(key,  null);
     }
 
     @Override
@@ -84,7 +88,7 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
         XCacheObject<E> xCacheObject = XCacheObject.of(e, version);
         setBucket(key, xCacheObject);
         setLocalCache(key, xCacheObject);
-        publishIfAuto(key, XCacheEvent.ACTION_SAVE, XCacheEvent.LEVEL_LOCAL, xCacheObject);
+        publishEventIfAuto(key, null);
     }
 
     @Override
@@ -94,7 +98,7 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
             localCache.invalidate(key);
         }
         getBucket(key).deleteAsync();
-        publishIfAuto(key, XCacheEvent.ACTION_DEL, XCacheEvent.LEVEL_LOCAL, null);
+        publishEventIfAuto(key, null);
     }
 
     @Override
@@ -241,7 +245,6 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
             doAutoRefreshAsync(key, version, callable);
             return;
         }
-
         // 判断这个缓存已经过期
         if (current.getExpireAt() != null && current.getExpireAt().before(new Date())) {
             doAutoRefreshAsync(key, version, callable);
@@ -259,14 +262,13 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
         });
     }
 
-
     private XCacheObject<E> callXCacheObject(String key, Integer version, Callable<E> callable)
     {
         E object = doCall(callable);
         XCacheObject<E> xCacheObject = ofXCacheObject(object, version);
         setBucket(key, xCacheObject);
         setLocalCache(key, xCacheObject);
-        publishIfAuto(key, XCacheEvent.ACTION_SAVE, XCacheEvent.LEVEL_LOCAL, xCacheObject);
+        publishEventIfAuto(key, null);
         return xCacheObject;
     }
 
@@ -295,7 +297,6 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
         return XCacheObject.of(e, version, config.getObjectConfig().getTimeout(), config.getObjectConfig().getUnit());
     }
 
-
     private RLock getBucketLock(String key)
     {
         return redisson.getLock(key + ":lock");
@@ -316,19 +317,29 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
         return redisson.getBucket(key + ":seq:" + seq);
     }
 
-
-    public void publishIfAuto(String key, int action, int level, XCacheObject<E> xCacheObject)
+    public void publishEventIfAuto(String key, int action, int level, XCacheObject<E> xCacheObject)
     {
         if (config.getTopicConfig().isEnabled() && config.getTopicConfig().isAutoPublish()) {
-            XCacheEvent xCacheEvent = XCacheEvent.builder()
+            XCacheEvent.XCacheEventBuilder builder = XCacheEvent.builder()
                     .key(key)
                     .seq(rSeq.getAndIncrement())
-                    .action(XCacheEvent.ACTION_SAVE)
-                    .level(XCacheEvent.LEVEL_LOCAL)
-                    .xCacheObject(xCacheObject)
-                    .build();
-            rTopic.publish(xCacheEvent);
+                    .action(action)
+                    .level(level)
+                    .instance(this.instance);
+            if(action == XCacheEvent.ACTION_SAVE){
+                builder.xCacheObject(xCacheObject);
+            }
+            XCacheEvent event = builder.build();
+            rTopic.publish(event);
         }
+    }
+
+    public void publishEventIfAuto(String key, XCacheObject<E> xCacheObject)
+    {
+        publishEventIfAuto(key,
+                config.getTopicConfig().getAutoPublishAction(),
+                config.getTopicConfig().getAutoPublishLevel(),
+                xCacheObject);
     }
 
 
@@ -349,6 +360,11 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
 
     private void doActionDelMessage(XCacheEvent msg)
     {
+        // 自己发布的消息，不进行处理
+        if(this.instance.equals(msg.getInstance())){
+            return ;
+        }
+
         // 清除redis缓存
         if (msg.getLevel() == XCacheEvent.LEVEL_ALL) {
             RBucket<Long> seqBucket = getSeqBucket(msg.getKey(), msg.getSeq());
@@ -364,6 +380,11 @@ public class RedissonXBucket<E> implements XBucket<E>, MessageListener<XCacheEve
 
     private void doActionSaveMessage(XCacheEvent msg)
     {
+        // 自己发布的消息，不进行处理
+        if(this.instance.equals(msg.getInstance())){
+            return ;
+        }
+
         if (config.getLocalConfig().isEnabled() && msg.getXCacheObject() != null) {
             setLocalCache(msg.getKey(), (XCacheObject<E>) msg.getXCacheObject());
         }

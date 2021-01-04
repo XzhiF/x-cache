@@ -18,6 +18,7 @@
     <modules>
         <module>x-cache-api</module>
         <module>x-cache-redisson</module>
+        <module>x-cache-examples</module>
     </modules>
 
     <properties>
@@ -92,13 +93,44 @@
         </dependency>
     </dependencies>
 
+
+    <repositories>
+        <repository>
+            <id>gznytech-snapshot</id>
+            <url>http://gznytech-nexus.com:8081/repository/gznytech-snapshot/</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+        <repository>
+            <id>gznytech-release</id>
+            <url>http://gznytech-nexus.com:8081/repository/gznytech-release/</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </repository>
+    </repositories>
+    <distributionManagement>
+        <snapshotRepository>
+            <id>gznytech-snapshot</id>
+            <name>gznytech Nexus Release Repository</name>
+            <url>http://gznytech-nexus.com:8081/repository/gznytech-snapshot/</url>
+        </snapshotRepository>
+        <repository>
+            <id>gznytech-release</id>
+            <name>gznytech Nexus Snapshot Repository</name>
+            <url>http://gznytech-nexus.com:8081/repository/gznytech-release/</url>
+        </repository>
+    </distributionManagement>
+
+
     <build>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                </plugin>
+            </plugins>
+        </pluginManagement>
     </build>
 
 </project>
